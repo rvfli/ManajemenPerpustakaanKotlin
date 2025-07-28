@@ -1,0 +1,267 @@
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.UUID
+
+data class Book(
+    val id: String,
+    val title: String,
+    val author: String,
+    val year: Int,
+    var isAvailable: Boolean = true,
+    var borrowerId: String? = null
+) {
+    fun borrow(memberId: String): Boolean {
+        if (isAvailable) {
+            isAvailable = false
+            this.borrowerId = memberId
+            return true
+        }
+        return false
+    }
+
+    fun returnBook(): Boolean {
+        if (!isAvailable) {
+            isAvailable = true
+            this.borrowerId = null
+            return true
+        }
+        return false
+    }
+
+    override fun toString(): String {
+        return "ID: $id, Judul: '$title', Pengarang: $author, Tersedia: ${if (isAvailable) "Ya" else "Tidak (dipinjam oleh $borrowerId)"}"
+    }
+}
+
+data class Member(
+    val id: String,
+    val name: String,
+    val address: String,
+    val phone: String
+) {
+    override fun toString(): String {
+        return "ID: $id, Nama: $name, Alamat: $address, Telepon: $phone"
+    }
+}
+
+data class Loan(
+    val loanId: String,
+    val bookId: String,
+    val memberId: String,
+    val loanDate: LocalDate,
+    val dueDate: LocalDate,
+    var returnDate: LocalDate? = null,
+    var isReturned: Boolean = false
+) {
+    fun markAsReturned() {
+        this.returnDate = LocalDate.now()
+        this.isReturned = true
+    }
+
+    override fun toString(): String {
+        val formatter = DateTimeFormatter.ofPattern("dd-MM-yyyy")
+        val loanDateStr = loanDate.format(formatter)
+        val dueDateStr = dueDate.format(formatter)
+        val returnDateStr = returnDate?.format(formatter) ?: "Belum Dikembalikan"
+        return "ID Pinjam: $loanId, Buku ID: $bookId, Anggota ID: $memberId, " +
+                "Pinjam: $loanDateStr, Jatuh Tempo: $dueDateStr, Kembali: $returnDateStr, " +
+                "Status: ${if (isReturned) "Dikembalikan" else "Dipinjam"}"
+    }
+}
+
+class Library {
+    private val books: MutableList<Book> = mutableListOf()
+    private val members: MutableList<Member> = mutableListOf()
+    private val loans: MutableList<Loan> = mutableListOf()
+
+    fun addBook(book: Book): Boolean {
+        if (books.any { it.id == book.id }) {
+            println("Error: Buku dengan ID '${book.id}' sudah ada.")
+            return false
+        }
+        books.add(book)
+        println("Buku '${book.title}' berhasil ditambahkan.")
+        return true
+    }
+
+    fun addMember(member: Member): Boolean {
+        if (members.any { it.id == member.id }) {
+            println("Error: Anggota dengan ID '${member.id}' sudah ada.")
+            return false
+        }
+        members.add(member)
+        println("Anggota '${member.name}' berhasil ditambahkan.")
+        return true
+    }
+
+    fun borrowBook(bookId: String, memberId: String) {
+        val book = books.find { it.id == bookId }
+        val member = members.find { it.id == memberId }
+
+        if (book == null) {
+            println("Error: Buku dengan ID '$bookId' tidak ditemukan.")
+            return
+        }
+        if (member == null) {
+            println("Error: Anggota dengan ID '$memberId' tidak ditemukan.")
+            return
+        }
+        if (!book.isAvailable) {
+            println("Error: Buku '${book.title}' sedang tidak tersedia (dipinjam oleh ${book.borrowerId}).")
+            return
+        }
+
+        if (book.borrow(memberId)) {
+            val loanId = "L-${UUID.randomUUID().toString().substring(0, 8)}"
+            val loan = Loan(loanId, bookId, memberId, LocalDate.now(), LocalDate.now().plusDays(7))
+            loans.add(loan)
+            println("Buku '${book.title}' berhasil dipinjam oleh '${member.name}'.")
+        } else {
+            println("Gagal meminjam buku (status buku tidak valid).")
+        }
+    }
+
+    fun returnBook(bookId: String) {
+        val book = books.find { it.id == bookId }
+        if (book == null) {
+            println("Error: Buku dengan ID '$bookId' tidak ditemukan.")
+            return
+        }
+        if (book.isAvailable) {
+            println("Error: Buku '${book.title}' tidak sedang dipinjam.")
+            return
+        }
+
+        val activeLoan = loans.find { it.bookId == bookId && !it.isReturned }
+
+        if (activeLoan != null) {
+            if (book.returnBook()) {
+                activeLoan.markAsReturned()
+                println("Buku '${book.title}' berhasil dikembalikan.")
+            } else {
+                println("Gagal mengembalikan buku (status buku tidak valid).")
+            }
+        } else {
+            println("Error: Tidak ada catatan peminjaman aktif untuk buku ini.")
+        }
+    }
+
+    fun displayAllBooks() {
+        if (books.isEmpty()) {
+            println("Belum ada buku terdaftar.")
+            return
+        }
+        println("\n--- DAFTAR BUKU ---")
+        books.forEach { println(it) }
+        println("-------------------\n")
+    }
+
+    fun displayAllMembers() {
+        if (members.isEmpty()) {
+            println("Belum ada anggota terdaftar.")
+            return
+        }
+        println("\n--- DAFTAR ANGGOTA ---")
+        members.forEach { println(it) }
+        println("---------------------\n")
+    }
+
+    fun displayAllLoans() {
+        if (loans.isEmpty()) {
+            println("Belum ada catatan peminjaman.")
+            return
+        }
+        println("\n--- DAFTAR PEMINJAMAN ---")
+        loans.forEach { println(it) }
+        println("-------------------------\n")
+    }
+}
+
+fun main() {
+    val library = Library()
+
+    library.addBook(Book("B001", "Laut Bercerita", "Leila S. Chudori", 2017))
+    library.addBook(Book("B002", "Perpustakaan Tengah Malam", "Matt Haig", 2020))
+    library.addMember(Member("M001", "Dion Wiyoko", "Jl. Bunga No. 6", "083875609887"))
+    library.addMember(Member("M002", "Jefri Nichol", "Jl. Merpati No. 12", "085736748971"))
+
+    var choice: Int
+
+    do {
+        println("===== SISTEM MANAJEMEN PERPUSTAKAAN =====")
+        println("1. Tambah Buku")
+        println("2. Tambah Anggota")
+        println("3. Pinjam Buku")
+        println("4. Kembalikan Buku")
+        println("5. Lihat Semua Buku")
+        println("6. Lihat Semua Anggota")
+        println("7. Lihat Semua Peminjaman")
+        println("0. Keluar")
+        print("Masukkan pilihan Anda: ")
+
+        choice = readLine()?.toIntOrNull() ?: -1
+
+        when (choice) {
+            1 -> {
+                print("Masukkan ID Buku: ")
+                val id = readLine().orEmpty()
+                print("Masukkan Judul: ")
+                val title = readLine().orEmpty()
+                print("Masukkan Pengarang: ")
+                val author = readLine().orEmpty()
+                print("Masukkan Tahun Terbit: ")
+                val year = readLine()?.toIntOrNull()
+
+                if (id.isNotBlank() && title.isNotBlank() && author.isNotBlank() && year != null) {
+                    library.addBook(Book(id, title, author, year))
+                } else {
+                    println("Input tidak valid. Pastikan semua kolom terisi dengan benar.")
+                }
+            }
+            2 -> {
+                print("Masukkan ID Anggota: ")
+                val id = readLine().orEmpty()
+                print("Masukkan Nama: ")
+                val name = readLine().orEmpty()
+                print("Masukkan Alamat: ")
+                val address = readLine().orEmpty()
+                print("Masukkan Nomor Telepon: ")
+                val phone = readLine().orEmpty()
+
+                if (id.isNotBlank() && name.isNotBlank() && address.isNotBlank() && phone.isNotBlank()) {
+                    library.addMember(Member(id, name, address, phone))
+                } else {
+                    println("Input tidak valid. Pastikan semua kolom terisi dengan benar.")
+                }
+            }
+            3 -> {
+                print("Masukkan ID Buku yang akan dipinjam: ")
+                val bookId = readLine().orEmpty()
+                print("Masukkan ID Anggota peminjam: ")
+                val memberId = readLine().orEmpty()
+
+                if (bookId.isNotBlank() && memberId.isNotBlank()) {
+                    library.borrowBook(bookId, memberId)
+                } else {
+                    println("Input tidak valid. ID Buku dan ID Anggota tidak boleh kosong.")
+                }
+            }
+            4 -> {
+                print("Masukkan ID Buku yang akan dikembalikan: ")
+                val bookId = readLine().orEmpty()
+
+                if (bookId.isNotBlank()) {
+                    library.returnBook(bookId)
+                } else {
+                    println("Input tidak valid. ID Buku tidak boleh kosong.")
+                }
+            }
+            5 -> library.displayAllBooks()
+            6 -> library.displayAllMembers()
+            7 -> library.displayAllLoans()
+            0 -> println("Terima kasih telah menggunakan Sistem Manajemen Perpustakaan.")
+            else -> println("Pilihan tidak valid. Silakan coba lagi.")
+        }
+        println()
+    } while (choice != 0)
+}
